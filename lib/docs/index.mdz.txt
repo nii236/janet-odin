@@ -1,0 +1,100 @@
+{:title "The Janet C API"
+ :nav-title "C API"
+ :template "docpage.html"
+ :order 4}
+---
+
+One of the fundamental design goals of Janet is to extend it via the C programming
+language, as well as embed the interpreter in a larger program. To this end, Janet
+exposes most of its low level functionality in well defined C API. Unlike Janet, the
+Janet C API is not safe @html[&mdash;] it's possible to write programs in C that will
+crash, use memory after freeing it, or simply cause undefined behavior. However, using the
+C API will let you use high performance libraries on almost any system and access native
+functionality that is not possible in pure Janet.
+
+Janet's C API assumes that you will have one Janet interpreter per OS thread
+(if the system you are on has threads). The means
+that Janet must have some global, thread local state. This is a problem for some
+host languages, like Go, that expect all code to be fully re-entrant on any thread.
+This design choice, however, makes the Janet APIs more pleasant to use in languages
+like C and C++, as there is no need to pass around a context object to all api functions.
+
+## What defines the C API?
+
+The C API is defined by the header @code`janet.h`, which should be included
+by programs to both embed Janet in a larger program, or to write a Janet module.
+
+## Using The Amalgamation
+
+When integrating Janet into a host project (usually some larger application, but it could be
+a small wrapper around Janet), it is convenient to be able to add only a few source files
+to your project rather than a large dependency. The amalgamated source, @code`janet.c`, contains
+all of the source code for Janet concatenated into one file. This file can be added to the host project, along
+with @code`janet.h` and @code`janetconf.h`. There is also the option of including @code`shell.c`, which is
+used in the standalone interpreter, but not usually needed for host programs.
+
+On a POSIX system, building the amalgamated source is straightforward. With @code`janet.c`, @code`janet.h`, @code`janetconf.h`, and
+@code`shell.c` in the current directory, building is as follows:
+
+@codeblock```
+cc -std=c99 -Wall -Werror -O2 -fPIC -shared janet.c shell.c -o janet -lm -ldl -lrt -lpthread
+```
+
+The exact flags required will depend on the system and on the configuration of the amalgamation.
+For example, linking to pthreads is not needed if JANET_SINGLE_THREADED is defined in @code`janetconf.h`.
+
+## Writing a Module
+
+The easiest way to get started with the Janet C API is to write a Janet native
+module. A native module is native code that can be loaded dynamically at runtime
+in the interpreter.
+
+A basic skeleton for a native module in C is below.
+
+@codeblock[c]```
+#include <janet.h>
+
+static Janet myfun(int32_t argc, Janet *argv) {
+    janet_fixarity(argc, 0);
+    printf("hello from a module!\n");
+    return janet_wrap_nil();
+}
+
+static const JanetReg cfuns[] = {
+    {"myfun", myfun, "(mymod/myfun)\n\nPrints a hello message."},
+    {NULL, NULL, NULL}
+};
+
+JANET_MODULE_ENTRY(JanetTable *env) {
+    janet_cfuns(env, "mymod", cfuns);
+}
+```
+
+This module is a very simple module that exposes one
+native function called @code`myfun`. The module is called @code`mymod`, although
+when importing the module, the user can rename it to whatever he or she likes.
+
+### Compiling the Module
+
+Once you have written you native code a file @code`mymod.c`, you will need to
+compile it with your system's C compiler. The easiest way to do this is to use @code`jpm` and write a @code`project.janet` file.
+@code`jpm` will handle all of the linking and flags for you so that you can write portable modules. Since @code`project.janet`
+is just a Janet script, you can detect what platform you are running on and do conditional compilation there if needed.
+
+Inside @code`project.janet`:
+
+@codeblock[janet]```
+(declare-project :name "mymod")
+(declare-native :name "mymod" :source @["mymod.c"])
+```
+
+Once you have @code`project.janet` written, run @code`jpm build` to build the module.
+If all goes well, @code`jpm` should have built a file @code`build/mymod.so`. In your repl, you can now
+import your module and use it.
+
+@codeblock[janet]```
+(import /build/mymod :as mymod)
+(mymod/myfun) # Prints the hello message
+```
+
+Congratulations, you have a native module.
