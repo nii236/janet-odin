@@ -57,30 +57,39 @@ main :: proc() {
 	}
 
 	// Mathematical functions
-	math_value, _ := janet.vm_eval(vm, "(math/sin (math/pi))")
-	defer janet.value_destroy(math_value)
-
-	if sin_pi, ok := janet.value_to_number(math_value); ok {
-		fmt.printf("sin(π): %f\n", sin_pi)
+	math_value, eval_err3 := janet.vm_eval(vm, "(math/sin math/pi)")
+	if eval_err3 != .NONE {
+		fmt.printf("Math eval error: %v\n", eval_err3)
+	} else {
+		defer janet.value_destroy(math_value)
+		if sin_pi, ok := janet.value_to_number(math_value); ok {
+			fmt.printf("sin(π): %f\n", sin_pi)
+		}
 	}
 
 	// Example 3: Creating values from Odin
 	fmt.println("\n=== Creating Janet Values from Odin ===")
 	odin_num := janet.vm_number(vm, 42.5)
 	defer janet.value_destroy(odin_num)
-	fmt.printf("Number from Odin: %s\n", janet.value_format(odin_num))
+	if num, ok := janet.value_to_number(odin_num); ok {
+		fmt.printf("Number from Odin: %f\n", num)
+	}
 
 	odin_str := janet.vm_string(vm, "Hello from Odin!")
 	defer janet.value_destroy(odin_str)
-	fmt.printf("String from Odin: %s\n", janet.value_format(odin_str))
+	if str, ok := janet.value_to_string(odin_str); ok {
+		fmt.printf("String from Odin: %s\n", str)
+	}
 
 	odin_bool := janet.vm_boolean(vm, true)
 	defer janet.value_destroy(odin_bool)
-	fmt.printf("Boolean from Odin: %s\n", janet.value_format(odin_bool))
+	if b, ok := janet.value_to_boolean(odin_bool); ok {
+		fmt.printf("Boolean from Odin: %t\n", b)
+	}
 
 	odin_nil := janet.vm_nil(vm)
 	defer janet.value_destroy(odin_nil)
-	fmt.printf("Nil from Odin: %s\n", janet.value_format(odin_nil))
+	fmt.printf("Nil from Odin: nil\n")
 
 	// Example 4: Error handling
 	fmt.println("\n=== Error Handling Demo ===")
@@ -89,7 +98,11 @@ main :: proc() {
 		fmt.printf("Expected error caught: %v\n", eval_err2)
 	} else {
 		defer janet.value_destroy(error_value)
-		fmt.printf("Unexpected success: %s\n", janet.value_format(error_value))
+		if val, ok := janet.value_to_number(error_value); ok {
+			fmt.printf("Unexpected success: %f\n", val)
+		} else {
+			fmt.printf("Unexpected success: <unknown type>\n")
+		}
 	}
 
 	// Example 5: Complex data structures
