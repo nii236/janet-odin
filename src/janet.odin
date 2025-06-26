@@ -64,7 +64,7 @@ Janet_Signal :: enum c.int {
 Janet_Table :: rawptr
 Janet_Fiber :: rawptr
 Janet_Function :: rawptr
-Janet_CFunction :: proc(argc: c.int, argv: ^Janet) -> Janet
+Janet_CFunction :: proc "c" (argc: c.int32_t, argv: ^Janet) -> Janet
 Janet_Array :: rawptr
 Janet_Buffer :: rawptr
 Janet_String :: ^u8
@@ -105,6 +105,17 @@ foreign janet {
     janet_type :: proc(x: Janet) -> Janet_Type ---
     janet_checktype :: proc(x: Janet, type: Janet_Type) -> c.int ---
     janet_checktypes :: proc(x: Janet, typeflags: c.int) -> c.int ---
+    
+    // Arity checking
+    janet_fixarity :: proc(argc: c.int32_t, arity: c.int32_t) ---
+    janet_arity :: proc(argc: c.int32_t, min: c.int32_t, max: c.int32_t) ---
+    
+    // Argument extraction functions
+    janet_getnumber :: proc(argv: ^Janet, n: c.int32_t) -> f64 ---
+    janet_getcstring :: proc(argv: ^Janet, n: c.int32_t) -> cstring ---
+    janet_getstring :: proc(argv: ^Janet, n: c.int32_t) -> Janet_String ---
+    janet_getboolean :: proc(argv: ^Janet, n: c.int32_t) -> c.int ---
+    janet_getinteger :: proc(argv: ^Janet, n: c.int32_t) -> c.int32_t ---
     
     // Wrapping functions
     janet_wrap_nil :: proc() -> Janet ---
@@ -162,6 +173,7 @@ foreign janet {
     janet_table_get :: proc(t: Janet_Table, key: Janet) -> Janet ---
     janet_table_put :: proc(t: Janet_Table, key: Janet, value: Janet) ---
     janet_resolve :: proc(env: Janet_Table, sym: Janet_String, out: ^Janet) -> c.int ---
+    janet_def :: proc(env: Janet_Table, name: cstring, val: Janet, documentation: cstring) ---
     
     // Array operations
     janet_array :: proc(capacity: c.int32_t) -> Janet_Array ---

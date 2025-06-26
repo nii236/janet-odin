@@ -1,7 +1,101 @@
 package main
 
-import "core:fmt"
 import janet "../../src"
+import "core:c"
+import "core:fmt"
+import "core:math"
+import "core:strings"
+
+// REAL Odin functions that Janet can call directly!
+odin_multiply_cfunc :: proc "c" (argc: c.int32_t, argv: ^janet.Janet) -> janet.Janet {
+	context = context // Set Odin context for this C function
+
+	// Check arity - exactly 2 arguments required
+	janet.janet_fixarity(argc, 2)
+
+	// Extract and type-check arguments using Janet's API
+	a := janet.janet_getnumber(argv, 0)
+	b := janet.janet_getnumber(argv, 1)
+
+	// Actual Odin computation
+	result := a * b
+
+	// Return Janet number
+	return janet.janet_wrap_number(result)
+}
+
+odin_add_cfunc :: proc "c" (argc: c.int32_t, argv: ^janet.Janet) -> janet.Janet {
+	context = context
+
+	janet.janet_fixarity(argc, 2)
+
+	a := janet.janet_getnumber(argv, 0)
+	b := janet.janet_getnumber(argv, 1)
+
+	result := a + b
+
+	return janet.janet_wrap_number(result)
+}
+
+odin_power_cfunc :: proc "c" (argc: c.int32_t, argv: ^janet.Janet) -> janet.Janet {
+	context = context
+
+	janet.janet_fixarity(argc, 2)
+
+	base := janet.janet_getnumber(argv, 0)
+	exp := janet.janet_getnumber(argv, 1)
+
+	result := math.pow(base, exp)
+
+	return janet.janet_wrap_number(result)
+}
+
+odin_greet_cfunc :: proc "c" (argc: c.int32_t, argv: ^janet.Janet) -> janet.Janet {
+	context = context
+
+	janet.janet_fixarity(argc, 1)
+
+	// Get C string from Janet
+	name_cstr := janet.janet_getcstring(argv, 0)
+
+	// Create greeting using Odin
+	greeting := fmt.ctprintf("Hello from REAL Odin, %s!", name_cstr)
+
+	// Convert back to Janet string
+	return janet.janet_wrap_string(janet.janet_cstring(greeting))
+}
+
+// Register C functions using proper Janet module style
+register_odin_functions :: proc(vm: ^janet.VM) {
+	fmt.println("Registering Odin C functions...")
+
+	// Direct function registration using janet_def
+	multiply_name := strings.clone_to_cstring("odin-multiply")
+	defer delete(multiply_name)
+	multiply_sym := janet.janet_csymbol(multiply_name)
+	multiply_func := janet.janet_wrap_cfunction(odin_multiply_cfunc)
+	janet.janet_def(vm.env, multiply_name, multiply_func, "Multiply two numbers using Odin")
+
+	add_name := strings.clone_to_cstring("odin-add")
+	defer delete(add_name)
+	add_sym := janet.janet_csymbol(add_name)
+	add_func := janet.janet_wrap_cfunction(odin_add_cfunc)
+	janet.janet_def(vm.env, add_name, add_func, "Add two numbers using Odin")
+
+	power_name := strings.clone_to_cstring("odin-power")
+	defer delete(power_name)
+	power_sym := janet.janet_csymbol(power_name)
+	power_func := janet.janet_wrap_cfunction(odin_power_cfunc)
+	janet.janet_def(vm.env, power_name, power_func, "Raise base to power using Odin")
+
+	greet_name := strings.clone_to_cstring("odin-greet")
+	defer delete(greet_name)
+	greet_sym := janet.janet_csymbol(greet_name)
+	greet_func := janet.janet_wrap_cfunction(odin_greet_cfunc)
+	janet.janet_def(vm.env, greet_name, greet_func, "Greet someone using Odin")
+
+	fmt.println("Function registration complete!")
+}
 
 main :: proc() {
 	// Example 1: Legacy API (still works)
@@ -113,6 +207,8 @@ main :: proc() {
 	             :languages ["Janet" "Odin" "C"]})
 	(get person :name)
 	`
+
+
 	table_value, _ := janet.vm_eval(vm, table_code)
 	defer janet.value_destroy(table_value)
 
@@ -129,6 +225,8 @@ main :: proc() {
 	    (* n (factorial (- n 1)))))
 	(factorial 5)
 	`
+
+
 	fact_value, _ := janet.vm_eval(vm, func_code)
 	defer janet.value_destroy(fact_value)
 
@@ -138,16 +236,18 @@ main :: proc() {
 
 	// Example 7: Odin calling Janet function
 	fmt.println("\n=== Odin Calling Janet Function ===")
-	
+
 	// Define a Janet function and get a reference to it
 	janet_func_code := `
 	(defn greet [name]
 	  (string "Hello, " name " from Janet!"))
 	greet
 	`
+
+
 	janet_func_value, _ := janet.vm_eval(vm, janet_func_code)
 	defer janet.value_destroy(janet_func_value)
-	
+
 	// Call the Janet function from Odin using eval (simpler approach)
 	call_code := `(greet "Odin")`
 	greeting_result, call_err := janet.vm_eval(vm, call_code)
@@ -159,85 +259,46 @@ main :: proc() {
 	} else {
 		fmt.printf("Function call error: %v\n", call_err)
 	}
-	
-	// Example 8: Janet calling Odin function (via C function wrapper)
-	fmt.println("\n=== Janet Calling Odin Function ===")
-	
-	// For now, we'll demonstrate this by defining a Janet function that uses Odin data
-	// In a full implementation, we'd register a C function that wraps Odin code
-	odin_data_code := `
-	# Simulate Odin function by setting up data that Janet can use
-	(def odin-multiply 
-	  (fn [a b] 
-	    # This simulates calling an Odin function
-	    (print "Calling simulated Odin multiply function...")
-	    (* a b 2))) # Pretend the *2 comes from Odin logic
-	
-	(odin-multiply 6 7)
-	`
-	
-	odin_sim_value, _ := janet.vm_eval(vm, odin_data_code)
-	defer janet.value_destroy(odin_sim_value)
-	
-	if result, ok := janet.value_to_number(odin_sim_value); ok {
-		fmt.printf("Simulated Odin function called from Janet: %f\n", result)
+
+	// Example 8: Janet calling Odin functions (REAL IMPLEMENTATION!)
+	fmt.println("\n=== Janet Calling Odin Functions ===")
+
+	// Register REAL Odin C functions with Janet
+	register_odin_functions(vm)
+
+	// Test multiply function
+	multiply_result, _ := janet.vm_eval(vm, "(odin-multiply 6 7)")
+	defer janet.value_destroy(multiply_result)
+	if num, ok := janet.value_to_number(multiply_result); ok {
+		fmt.printf("odin-multiply(6, 7) = %f\n", num)
 	}
-	
-	// Example 9: Preloading and using existing module
-	fmt.println("\n=== Preloading Existing Module ===")
-	
-	// Load the sample module file
-	module_path := "sample_module.janet"
-	module_load_code := fmt.aprintf(`(import* "%s")`, module_path)
-	defer delete(module_load_code)
-	
-	module_value, module_err := janet.vm_eval(vm, module_load_code)
-	if module_err != .NONE {
-		fmt.printf("Module load error: %v\n", module_err)
-		fmt.println("Trying inline module definition instead...")
-		
-		// Fallback: define module inline
-		inline_module := `
-		(def math-utils
-		  {:square (fn [x] (* x x))
-		   :cube (fn [x] (* x x x))
-		   :fibonacci (fn [n] 
-		     (if (<= n 1) n 
-		       (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))})
-		
-		# Test the square function
-		((math-utils :square) 8)
-		`
-		
-		inline_result, _ := janet.vm_eval(vm, inline_module)
-		defer janet.value_destroy(inline_result)
-		
-		if square_result, ok := janet.value_to_number(inline_result); ok {
-			fmt.printf("Module square function result: %f\n", square_result)
-		}
-	} else {
-		defer janet.value_destroy(module_value)
-		fmt.println("Module loaded successfully!")
-		
-		// Use functions from the loaded module
-		module_test_code := `
-		(square 9)
-		`
-		test_result, _ := janet.vm_eval(vm, module_test_code)
-		defer janet.value_destroy(test_result)
-		
-		if square_result, ok := janet.value_to_number(test_result); ok {
-			fmt.printf("Loaded module square function result: %f\n", square_result)
-		}
-		
-		// Test another function
-		fib_test_code := `(fibonacci 10)`
-		fib_result, _ := janet.vm_eval(vm, fib_test_code)
-		defer janet.value_destroy(fib_result)
-		
-		if fib_val, ok := janet.value_to_number(fib_result); ok {
-			fmt.printf("Loaded module fibonacci(10): %f\n", fib_val)
-		}
+
+	// Test add function
+	add_result, _ := janet.vm_eval(vm, "(odin-add 10 20)")
+	defer janet.value_destroy(add_result)
+	if num, ok := janet.value_to_number(add_result); ok {
+		fmt.printf("odin-add(10, 20) = %f\n", num)
+	}
+
+	// Test power function
+	power_result, _ := janet.vm_eval(vm, "(odin-power 2 8)")
+	defer janet.value_destroy(power_result)
+	if num, ok := janet.value_to_number(power_result); ok {
+		fmt.printf("odin-power(2, 8) = %f\n", num)
+	}
+
+	// Test greet function
+	greet_result, _ := janet.vm_eval(vm, `(odin-greet "World")`)
+	defer janet.value_destroy(greet_result)
+	if str, ok := janet.value_to_string(greet_result); ok {
+		fmt.printf("odin-greet(\"World\") = %s\n", str)
+	}
+
+	// Test complex expression using Odin functions
+	complex_result, _ := janet.vm_eval(vm, "(odin-add (odin-multiply 3 4) (odin-power 2 3))")
+	defer janet.value_destroy(complex_result)
+	if num, ok := janet.value_to_number(complex_result); ok {
+		fmt.printf("odin-add(odin-multiply(3, 4), odin-power(2, 3)) = %f\n", num)
 	}
 
 	fmt.println("\n=== Demo Complete ===")
