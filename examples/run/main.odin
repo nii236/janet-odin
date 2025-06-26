@@ -97,6 +97,34 @@ register_odin_functions :: proc(vm: ^janet.VM) {
 	fmt.println("Function registration complete!")
 }
 
+// Create a proper Janet module using janet_cfuns (following Janet documentation pattern)
+register_odin_module :: proc(vm: ^janet.VM) {
+	fmt.println("Registering Odin module with proper namespacing...")
+
+	// Method 1: Manual registration with module-style naming (works in embedded contexts)
+	multiply_name := strings.clone_to_cstring("odin/multiply")
+	defer delete(multiply_name)
+	multiply_func := janet.janet_wrap_cfunction(odin_multiply_cfunc)
+	janet.janet_def(vm.env, multiply_name, multiply_func, "Multiply two numbers using Odin")
+
+	add_name := strings.clone_to_cstring("odin/add")
+	defer delete(add_name)
+	add_func := janet.janet_wrap_cfunction(odin_add_cfunc)
+	janet.janet_def(vm.env, add_name, add_func, "Add two numbers using Odin")
+
+	power_name := strings.clone_to_cstring("odin/power")
+	defer delete(power_name)
+	power_func := janet.janet_wrap_cfunction(odin_power_cfunc)
+	janet.janet_def(vm.env, power_name, power_func, "Raise base to power using Odin")
+
+	greet_name := strings.clone_to_cstring("odin/greet")
+	defer delete(greet_name)
+	greet_func := janet.janet_wrap_cfunction(odin_greet_cfunc)
+	janet.janet_def(vm.env, greet_name, greet_func, "Greet someone using Odin")
+
+	fmt.println("Module registration complete!")
+}
+
 main :: proc() {
 	// Example 1: Legacy API (still works)
 	fmt.println("=== Legacy API Demo ===")
@@ -299,6 +327,56 @@ main :: proc() {
 	defer janet.value_destroy(complex_result)
 	if num, ok := janet.value_to_number(complex_result); ok {
 		fmt.printf("odin-add(odin-multiply(3, 4), odin-power(2, 3)) = %f\n", num)
+	}
+
+	// Example 9: Proper Janet Module with Namespacing
+	fmt.println("\n=== Proper Janet Module with Namespacing ===")
+
+	// Register the module using proper module naming conventions
+	register_odin_module(vm)
+
+	// Janet's janet_cfuns registers functions with the prefix as part of the name
+	// So "odin" prefix + "multiply" function = "odin/multiply" in the environment
+
+	// Test module function calls
+	mod_multiply_result, err1 := janet.vm_eval(vm, "(odin/multiply 8 9)")
+	if err1 == .NONE {
+		defer janet.value_destroy(mod_multiply_result)
+		if num, ok := janet.value_to_number(mod_multiply_result); ok {
+			fmt.printf("odin/multiply(8, 9) = %f\n", num)
+		}
+	} else {
+		fmt.printf("odin/multiply failed, error: %v\n", err1)
+	}
+
+	mod_add_result, err2 := janet.vm_eval(vm, "(odin/add 15 25)")
+	if err2 == .NONE {
+		defer janet.value_destroy(mod_add_result)
+		if num, ok := janet.value_to_number(mod_add_result); ok {
+			fmt.printf("odin/add(15, 25) = %f\n", num)
+		}
+	} else {
+		fmt.printf("odin/add failed, error: %v\n", err2)
+	}
+
+	mod_power_result, err3 := janet.vm_eval(vm, "(odin/power 3 4)")
+	if err3 == .NONE {
+		defer janet.value_destroy(mod_power_result)
+		if num, ok := janet.value_to_number(mod_power_result); ok {
+			fmt.printf("odin/power(3, 4) = %f\n", num)
+		}
+	} else {
+		fmt.printf("odin/power failed, error: %v\n", err3)
+	}
+
+	mod_greet_result, err4 := janet.vm_eval(vm, `(odin/greet "Module")`)
+	if err4 == .NONE {
+		defer janet.value_destroy(mod_greet_result)
+		if str, ok := janet.value_to_string(mod_greet_result); ok {
+			fmt.printf("odin/greet(\"Module\") = %s\n", str)
+		}
+	} else {
+		fmt.printf("odin/greet failed, error: %v\n", err4)
 	}
 
 	fmt.println("\n=== Demo Complete ===")

@@ -69,6 +69,13 @@ Janet_Array :: rawptr
 Janet_Buffer :: rawptr
 Janet_String :: ^u8
 
+// Janet registry entry for module functions
+Janet_Reg :: struct {
+    name: cstring,
+    cfun: Janet_CFunction,
+    documentation: cstring,
+}
+
 // Janet GC Object and String Head structures
 Janet_GCObject :: struct {
     flags: c.int32_t,
@@ -174,6 +181,7 @@ foreign janet {
     janet_table_put :: proc(t: Janet_Table, key: Janet, value: Janet) ---
     janet_resolve :: proc(env: Janet_Table, sym: Janet_String, out: ^Janet) -> c.int ---
     janet_def :: proc(env: Janet_Table, name: cstring, val: Janet, documentation: cstring) ---
+    janet_cfuns :: proc(env: Janet_Table, regprefix: cstring, cfuns: ^Janet_Reg) ---
     
     // Array operations
     janet_array :: proc(capacity: c.int32_t) -> Janet_Array ---
