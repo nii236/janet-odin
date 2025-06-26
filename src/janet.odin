@@ -60,6 +60,26 @@ Janet_Signal :: enum c.int {
     USER9,
 }
 
+// Janet fiber status
+Janet_Fiber_Status :: enum c.int {
+    DEAD,
+    ERROR,
+    DEBUG,
+    PENDING,
+    USER0,
+    USER1,
+    USER2,
+    USER3,
+    USER4,
+    USER5,
+    USER6,
+    USER7,
+    USER8,
+    USER9,
+    NEW,
+    ALIVE,
+}
+
 // Opaque types
 Janet_Table :: rawptr
 Janet_Fiber :: rawptr
@@ -191,7 +211,9 @@ foreign janet {
     
     // Fiber operations
     janet_fiber :: proc(function: Janet_Function, capacity: c.int32_t, argc: c.int32_t, argv: ^Janet) -> Janet_Fiber ---
-    janet_fiber_status :: proc(fiber: Janet_Fiber) -> Janet_Signal ---
+    janet_fiber_reset :: proc(fiber: Janet_Fiber, function: Janet_Function, argc: c.int32_t, argv: ^Janet) -> Janet_Fiber ---
+    janet_fiber_status :: proc(fiber: Janet_Fiber) -> Janet_Fiber_Status ---
+    janet_current_fiber :: proc() -> Janet_Fiber ---
     
     // Tuple operations
     janet_tuple_n :: proc(values: ^Janet, n: c.int32_t) -> ^Janet ---

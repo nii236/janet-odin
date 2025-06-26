@@ -65,6 +65,40 @@ odin_greet_cfunc :: proc "c" (argc: c.int32_t, argv: ^janet.Janet) -> janet.Jane
 	return janet.janet_wrap_string(janet.janet_cstring(greeting))
 }
 
+// Odin function that works with fibers - demonstrates fiber status checking
+odin_fiber_runner_cfunc :: proc "c" (argc: c.int32_t, argv: ^janet.Janet) -> janet.Janet {
+	context = context
+
+	janet.janet_fixarity(argc, 1)
+
+	// Get the fiber argument using array access pattern
+	argv_slice := ([^]janet.Janet)(argv)[:argc]
+	fiber_val := argv_slice[0]
+	
+	// Check if it's actually a fiber
+	if janet.janet_checktype(fiber_val, .FIBER) == 0 {
+		return janet.janet_wrap_string(janet.janet_cstring("Error: Expected a fiber"))
+	}
+
+	fiber := janet.janet_unwrap_fiber(fiber_val)
+	status := janet.janet_fiber_status(fiber)
+	
+	// Return status information
+	status_name: cstring
+	#partial switch status {
+	case .NEW: status_name = "new"
+	case .ALIVE: status_name = "alive" 
+	case .DEAD: status_name = "dead"
+	case .ERROR: status_name = "error"
+	case .PENDING: status_name = "pending"
+	case .DEBUG: status_name = "debug"
+	case: status_name = "unknown"
+	}
+
+	result_str := fmt.ctprintf("Fiber status: %s", status_name)
+	return janet.janet_wrap_string(janet.janet_cstring(result_str))
+}
+
 // Register C functions using proper Janet module style
 register_odin_functions :: proc(vm: ^janet.VM) {
 	fmt.println("Registering Odin C functions...")
@@ -121,6 +155,11 @@ register_odin_module :: proc(vm: ^janet.VM) {
 	defer delete(greet_name)
 	greet_func := janet.janet_wrap_cfunction(odin_greet_cfunc)
 	janet.janet_def(vm.env, greet_name, greet_func, "Greet someone using Odin")
+
+	fiber_status_name := strings.clone_to_cstring("odin/fiber-status")
+	defer delete(fiber_status_name)
+	fiber_status_func := janet.janet_wrap_cfunction(odin_fiber_runner_cfunc)
+	janet.janet_def(vm.env, fiber_status_name, fiber_status_func, "Get fiber status from Odin")
 
 	fmt.println("Module registration complete!")
 }
@@ -377,6 +416,206 @@ main :: proc() {
 		}
 	} else {
 		fmt.printf("odin/greet failed, error: %v\n", err4)
+	}
+
+	// Example 10: Janet Fibers (Coroutines and Error Handling)
+	fmt.println("\n=== Janet Fibers Demo ===")
+
+	// Fiber Example 1: Basic yield/resume coroutine
+	fmt.println("--- Basic Fiber (yield/resume) ---")
+	fiber_code := `
+	(def f (fiber/new (fn []
+	                   (yield 1)
+	                   (yield 2)
+	                   (yield 3)
+	                   4)))
+	
+	# Resume the fiber multiple times and print each result
+	(print "Fiber results:")
+	(print "  Resume 1:" (resume f))
+	(print "  Resume 2:" (resume f))
+	(print "  Resume 3:" (resume f))
+	(print "  Resume 4:" (resume f))
+	(print "  Status:" (fiber/status f))
+	"Fiber sequence complete"
+	`
+	
+	fiber_result, _ := janet.vm_eval(vm, fiber_code)
+	defer janet.value_destroy(fiber_result)
+	if str, ok := janet.value_to_string(fiber_result); ok {
+		fmt.printf("Result: %s\n", str)
+	}
+
+	// Fiber Example 2: Generator pattern
+	fmt.println("--- Fiber Generator Pattern ---")
+	generator_code := `
+	(defn make-counter [start step]
+	  (fiber/new (fn []
+	    (var i start)
+	    (forever
+	      (yield i)
+	      (set i (+ i step))))))
+	
+	(def counter (make-counter 10 5))
+	
+	# Generate sequence and print each value
+	(print "Generator sequence:")
+	(print "  Gen 1:" (resume counter))
+	(print "  Gen 2:" (resume counter))
+	(print "  Gen 3:" (resume counter))
+	(print "  Status:" (fiber/status counter))
+	"Generator pattern complete"
+	`
+	
+	gen_result, _ := janet.vm_eval(vm, generator_code)
+	defer janet.value_destroy(gen_result)
+	if str, ok := janet.value_to_string(gen_result); ok {
+		fmt.printf("Result: %s\n", str)
+	}
+
+	// Fiber Example 3: Error handling with fibers
+	fmt.println("--- Fiber Error Handling ---")
+	error_code := `
+	(defn risky-function []
+	  (if (> (math/random) 0.5)
+	    (error "Something went wrong!")
+	    "Success!"))
+	
+	# Create fiber that traps errors (:e flag)
+	(def error-fiber (fiber/new risky-function :e))
+	(def result (resume error-fiber))
+	(def status (fiber/status error-fiber))
+	
+	(print "Error handling results:")
+	(print "  Result:" result)
+	(print "  Status:" status)
+	"Error handling complete"
+	`
+	
+	error_result, _ := janet.vm_eval(vm, error_code)
+	defer janet.value_destroy(error_result)
+	if str, ok := janet.value_to_string(error_result); ok {
+		fmt.printf("Result: %s\n", str)
+	}
+
+	// Fiber Example 4: Using try/catch (built on fibers)
+	fmt.println("--- Try/Catch with Fibers ---")
+	try_code := `
+	(defn might-fail []
+	  (if (> (math/random) 0.3)
+	    (error "Random failure!")
+	    "Operation succeeded"))
+	
+	(try
+	  (might-fail)
+	  ([err]
+	    (string "Caught error: " err)))
+	`
+	
+	try_result, _ := janet.vm_eval(vm, try_code)
+	defer janet.value_destroy(try_result)
+	if str, ok := janet.value_to_string(try_result); ok {
+		fmt.printf("Try/catch result: %s\n", str)
+	}
+
+	// Fiber Example 5: Dynamic bindings with fibers
+	fmt.println("--- Dynamic Bindings ---")
+	dynamic_code := `
+	(defn print-with-context []
+	  (print "Context value: " (dyn :my-context)))
+	
+	# Set a dynamic binding in current fiber
+	(setdyn :my-context "main-fiber")
+	(print-with-context)
+	
+	# Create new fiber with different context
+	(def f (fiber/new (fn []
+	  (setdyn :my-context "child-fiber")
+	  (print-with-context))))
+	
+	(resume f)
+	
+	# Back to main fiber context
+	(print-with-context)
+	
+	"Dynamic bindings demo complete"
+	`
+	
+	dyn_result, _ := janet.vm_eval(vm, dynamic_code)
+	defer janet.value_destroy(dyn_result)
+	if str, ok := janet.value_to_string(dyn_result); ok {
+		fmt.printf("Dynamic bindings result: %s\n", str)
+	}
+
+	// Fiber Example 6: Complex fiber coordination
+	fmt.println("--- Fiber Coordination ---")
+	coordination_code := `
+	(defn producer [channel]
+	  (fiber/new (fn []
+	    (for i 1 6
+	      (yield {:type :data :value i}))
+	    {:type :done})))
+	
+	(defn consumer [prod-fiber]
+	  (var running true)
+	  (def results @[])
+	  (while running
+	    (def msg (resume prod-fiber))
+	    (if (= (get msg :type) :done)
+	      (set running false)
+	      (array/push results (get msg :value))))
+	  results)
+	
+	(def prod (producer nil))
+	(def collected (consumer prod))
+	(print "Coordination results:" collected)
+	"Fiber coordination complete"
+	`
+	
+	coord_result, _ := janet.vm_eval(vm, coordination_code)
+	defer janet.value_destroy(coord_result)
+	if str, ok := janet.value_to_string(coord_result); ok {
+		fmt.printf("Result: %s\n", str)
+	}
+
+	// Fiber Example 7: Odin function working with fibers
+	fmt.println("--- Odin Function with Fibers ---")
+	odin_fiber_code := `
+	# Create a fiber
+	(def test-fiber (fiber/new (fn []
+	  (yield "first")
+	  (yield "second")
+	  "final")))
+	
+	# Check status before resuming
+	(def status1 (odin/fiber-status test-fiber))
+	(print "Initial status:" status1)
+	
+	# Resume once
+	(def result1 (resume test-fiber))
+	(print "First resume result:" result1)
+	
+	# Check status after first resume
+	(def status2 (odin/fiber-status test-fiber))
+	(print "After first resume:" status2)
+	
+	# Resume until completion
+	(def result2 (resume test-fiber))
+	(print "Second resume result:" result2)
+	(def result3 (resume test-fiber))
+	(print "Final resume result:" result3)
+	
+	# Check final status
+	(def status3 (odin/fiber-status test-fiber))
+	(print "Final status:" status3)
+	
+	"Odin fiber status demo complete"
+	`
+	
+	odin_fiber_result, _ := janet.vm_eval(vm, odin_fiber_code)
+	defer janet.value_destroy(odin_fiber_result)
+	if str, ok := janet.value_to_string(odin_fiber_result); ok {
+		fmt.printf("Result: %s\n", str)
 	}
 
 	fmt.println("\n=== Demo Complete ===")
