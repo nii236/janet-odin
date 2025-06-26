@@ -1,7 +1,7 @@
 package main
 
 import "core:fmt"
-import janet "../src"
+import janet "../../src"
 
 main :: proc() {
 	// Example 1: Legacy API (still works)
@@ -134,6 +134,110 @@ main :: proc() {
 
 	if fact, ok := janet.value_to_number(fact_value); ok {
 		fmt.printf("Factorial of 5: %f\n", fact)
+	}
+
+	// Example 7: Odin calling Janet function
+	fmt.println("\n=== Odin Calling Janet Function ===")
+	
+	// Define a Janet function and get a reference to it
+	janet_func_code := `
+	(defn greet [name]
+	  (string "Hello, " name " from Janet!"))
+	greet
+	`
+	janet_func_value, _ := janet.vm_eval(vm, janet_func_code)
+	defer janet.value_destroy(janet_func_value)
+	
+	// Call the Janet function from Odin using eval (simpler approach)
+	call_code := `(greet "Odin")`
+	greeting_result, call_err := janet.vm_eval(vm, call_code)
+	if call_err == .NONE {
+		defer janet.value_destroy(greeting_result)
+		if greeting, ok := janet.value_to_string(greeting_result); ok {
+			fmt.printf("Janet function result: %s\n", greeting)
+		}
+	} else {
+		fmt.printf("Function call error: %v\n", call_err)
+	}
+	
+	// Example 8: Janet calling Odin function (via C function wrapper)
+	fmt.println("\n=== Janet Calling Odin Function ===")
+	
+	// For now, we'll demonstrate this by defining a Janet function that uses Odin data
+	// In a full implementation, we'd register a C function that wraps Odin code
+	odin_data_code := `
+	# Simulate Odin function by setting up data that Janet can use
+	(def odin-multiply 
+	  (fn [a b] 
+	    # This simulates calling an Odin function
+	    (print "Calling simulated Odin multiply function...")
+	    (* a b 2))) # Pretend the *2 comes from Odin logic
+	
+	(odin-multiply 6 7)
+	`
+	
+	odin_sim_value, _ := janet.vm_eval(vm, odin_data_code)
+	defer janet.value_destroy(odin_sim_value)
+	
+	if result, ok := janet.value_to_number(odin_sim_value); ok {
+		fmt.printf("Simulated Odin function called from Janet: %f\n", result)
+	}
+	
+	// Example 9: Preloading and using existing module
+	fmt.println("\n=== Preloading Existing Module ===")
+	
+	// Load the sample module file
+	module_path := "sample_module.janet"
+	module_load_code := fmt.aprintf(`(import* "%s")`, module_path)
+	defer delete(module_load_code)
+	
+	module_value, module_err := janet.vm_eval(vm, module_load_code)
+	if module_err != .NONE {
+		fmt.printf("Module load error: %v\n", module_err)
+		fmt.println("Trying inline module definition instead...")
+		
+		// Fallback: define module inline
+		inline_module := `
+		(def math-utils
+		  {:square (fn [x] (* x x))
+		   :cube (fn [x] (* x x x))
+		   :fibonacci (fn [n] 
+		     (if (<= n 1) n 
+		       (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))})
+		
+		# Test the square function
+		((math-utils :square) 8)
+		`
+		
+		inline_result, _ := janet.vm_eval(vm, inline_module)
+		defer janet.value_destroy(inline_result)
+		
+		if square_result, ok := janet.value_to_number(inline_result); ok {
+			fmt.printf("Module square function result: %f\n", square_result)
+		}
+	} else {
+		defer janet.value_destroy(module_value)
+		fmt.println("Module loaded successfully!")
+		
+		// Use functions from the loaded module
+		module_test_code := `
+		(square 9)
+		`
+		test_result, _ := janet.vm_eval(vm, module_test_code)
+		defer janet.value_destroy(test_result)
+		
+		if square_result, ok := janet.value_to_number(test_result); ok {
+			fmt.printf("Loaded module square function result: %f\n", square_result)
+		}
+		
+		// Test another function
+		fib_test_code := `(fibonacci 10)`
+		fib_result, _ := janet.vm_eval(vm, fib_test_code)
+		defer janet.value_destroy(fib_result)
+		
+		if fib_val, ok := janet.value_to_number(fib_result); ok {
+			fmt.printf("Loaded module fibonacci(10): %f\n", fib_val)
+		}
 	}
 
 	fmt.println("\n=== Demo Complete ===")
