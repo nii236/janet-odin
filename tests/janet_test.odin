@@ -25,7 +25,7 @@ test_basic_arithmetic :: proc(t: ^testing.T) {
 	if num, ok := janet.value_to_number(value); ok {
 		testing.expect(t, num == 5.0, fmt.tprintf("Expected 5.0, got %f", num))
 	} else {
-		testing.fail(t, "Should be able to convert result to number")
+		testing.fail(t)
 	}
 }
 
@@ -42,7 +42,7 @@ test_string_operations :: proc(t: ^testing.T) {
 	if str, ok := janet.value_to_string(value); ok {
 		testing.expect(t, str == "Hello World", fmt.tprintf("Expected 'Hello World', got '%s'", str))
 	} else {
-		testing.fail(t, "Should be able to convert result to string")
+		testing.fail(t)
 	}
 }
 
@@ -59,7 +59,7 @@ test_boolean_operations :: proc(t: ^testing.T) {
 	if b, ok := janet.value_to_boolean(true_value); ok {
 		testing.expect(t, b == true, "Expected true")
 	} else {
-		testing.fail(t, "Should be able to convert to boolean")
+		testing.fail(t)
 	}
 
 	// Test false
@@ -69,7 +69,7 @@ test_boolean_operations :: proc(t: ^testing.T) {
 	if b, ok := janet.value_to_boolean(false_value); ok {
 		testing.expect(t, b == false, "Expected false")
 	} else {
-		testing.fail(t, "Should be able to convert to boolean")
+		testing.fail(t)
 	}
 }
 
