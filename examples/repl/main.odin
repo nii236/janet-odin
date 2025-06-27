@@ -188,8 +188,16 @@ main :: proc() {
         // Read line with history support
         line, ok := read_line(prompt, &history)
         if !ok {
-            fmt.println("\nGoodbye!")
-            break
+            if strings.builder_len(accumulated_input) > 0 {
+                // Ctrl+D in continuation mode - discard and reset
+                fmt.println("\n^D")
+                strings.builder_reset(&accumulated_input)
+                continue
+            } else {
+                // Ctrl+D at main prompt - exit
+                fmt.println("\nGoodbye!")
+                break
+            }
         }
         defer delete(line)
         
